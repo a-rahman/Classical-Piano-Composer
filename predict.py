@@ -8,11 +8,23 @@ from keras.layers import Dense
 from keras.layers import Dropout
 from keras.layers import LSTM
 from keras.layers import Activation
+import argparse
 
-def generate():
+def process_arguments(args):
+    model_file, note_file, song_length, output_file = 'weights.hdf5', 'data/notes', 500, 'test_output.mid'
+    if args.model: model_file = args.model
+    if args.notes: note_file = args.notes
+    if args.length: song_length = args.length
+    if args.output: output_file = args.output
+    return model_file, note_file, song_length, output_file
+
+def generate(args):
     """ Generate a piano midi file """
+    # Get optional arguments
+    model_file, note_file, song_length, output_file = process_arguments(args)
+
     #load the notes used to train the model
-    with open('data/notes', 'rb') as filepath:
+    with open(note_file, 'rb') as filepath:
         notes = pickle.load(filepath)
 
     # Get all pitch names
@@ -21,9 +33,9 @@ def generate():
     n_vocab = len(set(notes))
 
     network_input, normalized_input = prepare_sequences(notes, pitchnames, n_vocab)
-    model = create_network(normalized_input, n_vocab)
-    prediction_output = generate_notes(model, network_input, pitchnames, n_vocab)
-    create_midi(prediction_output)
+    model = create_network(normalized_input, n_vocab, model_file)
+    prediction_output = generate_notes(model, network_input, pitchnames, n_vocab, song_length)
+    create_midi(prediction_output, output_file)
 
 def prepare_sequences(notes, pitchnames, n_vocab):
     """ Prepare the sequences used by the Neural Network """
@@ -48,7 +60,7 @@ def prepare_sequences(notes, pitchnames, n_vocab):
 
     return (network_input, normalized_input)
 
-def create_network(network_input, n_vocab):
+def create_network(network_input, n_vocab, model_file):
     """ create the structure of the neural network """
     model = Sequential()
     model.add(LSTM(
@@ -67,11 +79,11 @@ def create_network(network_input, n_vocab):
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
     # Load the weights to each node
-    model.load_weights('weights.hdf5')
+    model.load_weights(model_file)
 
     return model
 
-def generate_notes(model, network_input, pitchnames, n_vocab):
+def generate_notes(model, network_input, pitchnames, n_vocab, song_length):
     """ Generate notes from the neural network based on a sequence of notes """
     # pick a random sequence from the input as a starting point for the prediction
     start = numpy.random.randint(0, len(network_input)-1)
@@ -82,7 +94,7 @@ def generate_notes(model, network_input, pitchnames, n_vocab):
     prediction_output = []
 
     # generate 500 notes
-    for note_index in range(500):
+    for note_index in range(song_length):
         prediction_input = numpy.reshape(pattern, (1, len(pattern), 1))
         prediction_input = prediction_input / float(n_vocab)
 
@@ -97,7 +109,7 @@ def generate_notes(model, network_input, pitchnames, n_vocab):
 
     return prediction_output
 
-def create_midi(prediction_output):
+def create_midi(prediction_output, output_file):
     """ convert the output from the prediction to notes and create a midi file
         from the notes """
     offset = 0
@@ -128,7 +140,13 @@ def create_midi(prediction_output):
 
     midi_stream = stream.Stream(output_notes)
 
-    midi_stream.write('midi', fp='test_output.mid')
+    midi_stream.write('midi', fp=output_file)
 
 if __name__ == '__main__':
-    generate()
+    parser = argparse.ArgumentParser(description='Generate notes from a trained model')
+    parser.add_argument('-m', '--model', help='Trained model saved as an .hdf5.')
+    parser.add_argument('-n', '--notes', help='Pickled notes file that has the note-space of the corresponding model.')
+    parser.add_argument('-l', '--length', help='Number of notes to generate (default 500 produces ~2 mins of midi)', type=int)
+    parser.add_argument('-o', '--output', help='Output midi file name')
+    args = parser.parse_args()
+    generate(args)
