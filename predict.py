@@ -18,11 +18,8 @@ def process_arguments(args):
     if args.output: output_file = args.output
     return model_file, note_file, song_length, output_file
 
-def generate(args):
+def generate(model_file, note_file, song_length, output_file):
     """ Generate a piano midi file """
-    # Get optional arguments
-    model_file, note_file, song_length, output_file = process_arguments(args)
-
     #load the notes used to train the model
     with open(note_file, 'rb') as filepath:
         notes = pickle.load(filepath)
@@ -149,4 +146,6 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--length', help='Number of notes to generate (default 500 produces ~2 mins of midi)', type=int)
     parser.add_argument('-o', '--output', help='Output midi file name')
     args = parser.parse_args()
-    generate(args)
+    # Get optional arguments
+    model_file, note_file, song_length, output_file = process_arguments(args)
+    generate(model_file, note_file, song_length, output_file)
