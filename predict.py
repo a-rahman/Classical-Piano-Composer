@@ -9,6 +9,11 @@ from keras.layers import Dropout
 from keras.layers import LSTM
 from keras.layers import Activation
 import argparse
+import tensorflow as tf
+
+#hack to resolve keras threading issues
+#when running the model more than once
+graph = tf.get_default_graph()
 
 def process_arguments(args):
     model_file, note_file, song_length, output_file = 'weights.hdf5', 'data/notes', 500, 'test_output.mid'
@@ -59,24 +64,25 @@ def prepare_sequences(notes, pitchnames, n_vocab):
 
 def create_network(network_input, n_vocab, model_file):
     """ create the structure of the neural network """
-    model = Sequential()
-    model.add(LSTM(
-        512,
-        input_shape=(network_input.shape[1], network_input.shape[2]),
-        return_sequences=True
-    ))
-    model.add(Dropout(0.3))
-    model.add(LSTM(512, return_sequences=True))
-    model.add(Dropout(0.3))
-    model.add(LSTM(512))
-    model.add(Dense(256))
-    model.add(Dropout(0.3))
-    model.add(Dense(n_vocab))
-    model.add(Activation('softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+    with graph.as_default():
+        model = Sequential()
+        model.add(LSTM(
+            512,
+            input_shape=(network_input.shape[1], network_input.shape[2]),
+            return_sequences=True
+        ))
+        model.add(Dropout(0.3))
+        model.add(LSTM(512, return_sequences=True))
+        model.add(Dropout(0.3))
+        model.add(LSTM(512))
+        model.add(Dense(256))
+        model.add(Dropout(0.3))
+        model.add(Dense(n_vocab))
+        model.add(Activation('softmax'))
+        model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
-    # Load the weights to each node
-    model.load_weights(model_file)
+        # Load the weights to each node
+        model.load_weights(model_file)
 
     return model
 
@@ -91,18 +97,19 @@ def generate_notes(model, network_input, pitchnames, n_vocab, song_length):
     prediction_output = []
 
     # generate 500 notes
-    for note_index in range(song_length):
-        prediction_input = numpy.reshape(pattern, (1, len(pattern), 1))
-        prediction_input = prediction_input / float(n_vocab)
+    with graph.as_default():
+        for note_index in range(song_length):
+            prediction_input = numpy.reshape(pattern, (1, len(pattern), 1))
+            prediction_input = prediction_input / float(n_vocab)
 
-        prediction = model.predict(prediction_input, verbose=0)
+            prediction = model.predict(prediction_input, verbose=0)
 
-        index = numpy.argmax(prediction)
-        result = int_to_note[index]
-        prediction_output.append(result)
+            index = numpy.argmax(prediction)
+            result = int_to_note[index]
+            prediction_output.append(result)
 
-        pattern.append(index)
-        pattern = pattern[1:len(pattern)]
+            pattern.append(index)
+            pattern = pattern[1:len(pattern)]
 
     return prediction_output
 
