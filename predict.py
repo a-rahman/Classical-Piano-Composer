@@ -18,7 +18,7 @@ def process_arguments(args):
     if args.output: output_file = args.output
     return model_file, note_file, song_length, output_file
 
-def generate(model_file, note_file, song_length, output_file):
+def generate(model_file, note_file, song_length):
     """ Generate a piano midi file """
     #load the notes used to train the model
     with open(note_file, 'rb') as filepath:
@@ -32,7 +32,7 @@ def generate(model_file, note_file, song_length, output_file):
     network_input, normalized_input = prepare_sequences(notes, pitchnames, n_vocab)
     model = create_network(normalized_input, n_vocab, model_file)
     prediction_output = generate_notes(model, network_input, pitchnames, n_vocab, song_length)
-    create_midi(prediction_output, output_file)
+    return create_midi(prediction_output)
 
 def prepare_sequences(notes, pitchnames, n_vocab):
     """ Prepare the sequences used by the Neural Network """
@@ -106,7 +106,7 @@ def generate_notes(model, network_input, pitchnames, n_vocab, song_length):
 
     return prediction_output
 
-def create_midi(prediction_output, output_file):
+def create_midi(prediction_output):
     """ convert the output from the prediction to notes and create a midi file
         from the notes """
     offset = 0
@@ -136,8 +136,8 @@ def create_midi(prediction_output, output_file):
         offset += 0.5
 
     midi_stream = stream.Stream(output_notes)
-
-    midi_stream.write('midi', fp=output_file)
+    return midi_stream
+    # midi_stream.write('midi', fp=output_file)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate notes from a trained model')
@@ -148,4 +148,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     # Get optional arguments
     model_file, note_file, song_length, output_file = process_arguments(args)
-    generate(model_file, note_file, song_length, output_file)
+    midi_stream = generate(model_file, note_file, song_length)
+    midi_stream.write('midi', fp=output_file)
+
